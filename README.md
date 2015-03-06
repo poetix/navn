@@ -1,6 +1,16 @@
 # navn
 Name munging for Java (camel case to underscore, etc)
 
+In maven:
+```xml
+<dependency>
+    <groupId>com.codepoetics</groupId>
+    <artifactId>navn</artifactId>
+    <version>0.1</version>
+</dependency>
+```     
+
+Example usage:
 ```java
 Name name = Name.of("XML to CSV converter");
 

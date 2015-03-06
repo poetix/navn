@@ -27,6 +27,17 @@ public enum SourceFormat implements Predicate<String>, Function<String, String[]
             return Stream.of(input.split("_+")).filter(s -> s.length() > 0).toArray(String[]::new);
         }
     },
+    HYPHEN_SEPARATED() {
+        @Override
+        public boolean test(String s) {
+            return s.contains("-");
+        }
+
+        @Override
+        public String[] apply(String input) {
+            return Stream.of(input.split("-+")).filter(s -> s.length() > 0).toArray(String[]::new);
+        }
+    },
     CASE_SEPARATED() {
         private final ThreadLocal<CaseSeparatedReader> readerThreadLocal = ThreadLocal.withInitial(CaseSeparatedReader::new);
 

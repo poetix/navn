@@ -62,7 +62,19 @@ public final class Name {
     }
 
     public String toUnderscored() {
-        return toSeparated("_", FormattingOptions.LOWERCASE);
+        return toUnderscored(FormattingOptions.LOWERCASE);
+    }
+
+    public String toUnderscored(FormattingOption...options) {
+        return toSeparated("_", options);
+    }
+
+    public String toHyphenated() {
+        return toHyphenated(FormattingOptions.LOWERCASE);
+    }
+
+    public String toHyphenated(FormattingOption...options) {
+        return toSeparated("-", options);
     }
 
     public String toConstant() {

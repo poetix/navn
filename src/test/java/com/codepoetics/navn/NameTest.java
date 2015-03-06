@@ -24,6 +24,12 @@ public class NameTest {
     }
 
     @Test public void
+    readsHyphenSeparated() {
+        assertThat(Name.of("arthur-putey").toList(), contains("arthur", "putey"));
+        assertThat(Name.of("--arthur--putey-").toList(), contains("arthur", "putey"));
+    }
+
+    @Test public void
     readsCaseSeparated() {
         assertThat(Name.of("lowerCamelCase").toList(), contains("lower", "Camel", "Case"));
         assertThat(Name.of("UpperCamelCase").toList(), contains("Upper", "Camel", "Case"));
@@ -43,6 +49,12 @@ public class NameTest {
     writesUnderscoreSeparated() {
         assertThat(Name.of("Algernon~Charles~Swinburne", '~').toUnderscored(),
                 equalTo("algernon_charles_swinburne"));
+    }
+
+    @Test public void
+    writesHyphenSeparated() {
+        assertThat(Name.of("Francois Laruelle").toHyphenated(),
+                equalTo("francois-laruelle"));
     }
 
     @Test public void
@@ -114,4 +126,19 @@ public class NameTest {
         assertThat(Name.of("arthur_putey").format(Collectors.joining(" "), yourNameInLights),
                 equalTo("A*R*T*H*U*R P*U*T*E*Y"));
     }
+
+    @Test public void
+    examplesForDocumentation() {
+        Name name = Name.of("XML to CSV converter");
+
+        assertThat(name.toCamelCase(), equalTo("XMLToCSVConverter"));
+        assertThat(name.toUnderscored(), equalTo("xml_to_csv_converter"));
+        assertThat(name.toConstant(), equalTo("XML_TO_CSV_CONVERTER"));
+        assertThat(name.toAddress(), equalTo("XML To CSV Converter"));
+
+        assertThat(Name.of("foo_bar_baz").toLowerCamelCase(), equalTo("fooBarBaz"));
+        assertThat(Name.of("std::io", ':').toHyphenated(FormattingOptions.UPPERCASE),
+                equalTo("STD-IO"));
+    }
+
 }

@@ -1,5 +1,5 @@
 # navn
-Name munging for Java (camel case to underscore, etc)
+Name munging for Java 8 (camel case to underscore, etc)
 
 In maven:
 ```xml

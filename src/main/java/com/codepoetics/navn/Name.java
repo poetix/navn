@@ -2,9 +2,7 @@ package com.codepoetics.navn;
 
 import com.codepoetics.protonpack.StreamUtils;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
@@ -14,21 +12,32 @@ import java.util.stream.Stream;
 
 public final class Name {
 
+    public static Name empty() {
+        return new Name(new String[] {});
+    }
+
     public static Name of(String source) {
         String trimmed = source.trim();
+        if (trimmed.isEmpty()) {
+            return empty();
+        }
         return Stream.of(SourceFormat.values())
                 .filter(format -> format.test(trimmed))
-                .map(format -> of(trimmed, format))
+                .map(format -> ofTrimmed(trimmed, format))
                 .findFirst()
                 .orElseGet(() -> of(new String[]{trimmed}));
     }
 
-    public static Name of(String parts, char separator) {
-        return of(parts, s -> s.split("\\" + separator + "+"));
+    public static Name of(String source, char separator) {
+        return of(source, s -> s.split("\\" + separator + "+"));
     }
 
     public static Name of(String source, Function<String, String[]> reader) {
-        return of(reader.apply(source));
+        return ofTrimmed(source, reader);
+    }
+
+    private static Name ofTrimmed(String trimmed, Function<String, String[]> reader) {
+        return of(reader.apply(trimmed));
     }
 
     public static Name of(String[] parts) {
@@ -82,11 +91,11 @@ public final class Name {
     }
 
     public String toCamelCase() {
-        return format(Collectors.joining(), FormattingOptions.CAPITALISE_ALL);
+        return format(Collectors.joining(), FormattingOptions.CAPITALISE_ALL_BUT_FIRST);
     }
 
-    public String toLowerCamelCase() {
-        return format(Collectors.joining(), FormattingOptions.CAPITALISE_ALL_BUT_FIRST);
+    public String toTitleCase() {
+        return format(Collectors.joining(), FormattingOptions.CAPITALISE_ALL);
     }
 
     public String toAddress() {
@@ -127,6 +136,26 @@ public final class Name {
 
     public <T> T collect(Collector<String, ?, T> collector) {
         return Stream.of(parts).collect(collector);
+    }
+
+    public Name uppercasing(String... termsToUppercase) {
+        return uppercasingSet(Stream.of(termsToUppercase).map(String::toLowerCase).collect(Collectors.toSet()));
+    }
+
+    public Name uppercasing(Collection<String> termsToUppercase) {
+        return uppercasingSet(termsToUppercase.stream().map(String::toLowerCase).collect(Collectors.toSet()));
+    }
+
+    private Name uppercasingSet(Set<String> termsToUppercase) {
+        return map(n -> termsToUppercase.contains(n.toLowerCase()) ? n.toUpperCase() : n);
+    }
+
+    public Name withoutFirst() {
+        return transform(s -> s.skip(1));
+    }
+
+    public Name withoutLast() {
+        return new Name(Arrays.copyOf(parts, parts.length - 1));
     }
 
     @Override

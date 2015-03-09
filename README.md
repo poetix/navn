@@ -1,4 +1,7 @@
 # navn
+
+[![Build Status](https://travis-ci.org/poetix/navn.svg?branch=master)](https://travis-ci.org/poetix/navn)
+
 Name munging for Java 8 (camel case to underscore, etc)
 
 In maven:

@@ -4,7 +4,6 @@ import com.codepoetics.protonpack.StreamUtils;
 import com.codepoetics.protonpack.Streamable;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
@@ -13,8 +12,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class Name {
-
-    private static final long LENGTH_UNKNOWN = -1;
 
     public static Name empty() {
         return new Name(Streamable.empty(), 0);
@@ -33,7 +30,11 @@ public final class Name {
     }
 
     public static Name of(String source, char separator) {
-        return of(source, s -> s.split("\\" + separator + "+"));
+        return of(source, "\\" + separator + "+");
+    }
+
+    public static Name of(String source, String regex) {
+        return of(source, s -> s.split(regex));
     }
 
     public static Name of(String source, Function<String, String[]> reader) {
@@ -57,24 +58,19 @@ public final class Name {
     }
 
     public static Name of(Streamable<String> parts) {
-        return new Name(parts, LENGTH_UNKNOWN);
+        return of(parts.toArray(String[]::new));
     }
 
-    private final AtomicLong length;
+    private final long length;
     private final Streamable<String> parts;
 
     private Name(Streamable<String> parts, long length) {
         this.parts = parts;
-        this.length = new AtomicLong(length);
+        this.length = length;
     }
 
     public long length() {
-        return length.updateAndGet(l -> l == LENGTH_UNKNOWN ? parts.collect(Collectors.counting()) : l);
-    }
-
-    public Optional<Long> lengthIfKnown() {
-        long currentLength = length.get();
-        return currentLength == LENGTH_UNKNOWN ? Optional.empty() : Optional.of(currentLength);
+        return length;
     }
 
     public String[] toArray() {
@@ -92,6 +88,10 @@ public final class Name {
         return StreamUtils.zipWithIndex(parts.stream())
                 .map(indexed -> process.apply(indexed.getValue(), indexed.getIndex()))
                 .collect(collector);
+    }
+
+    public String toSeparated(FormattingOption...options) {
+        return toSeparated(" ", options);
     }
 
     public String toSeparated(String separator, FormattingOption...options) {
@@ -119,11 +119,23 @@ public final class Name {
     }
 
     public String toCamelCase() {
-        return format(Collectors.joining(), FormattingOptions.CAPITALISE_ALL_BUT_FIRST);
+        return toCamelCase(true);
+    }
+
+    public String toCamelCase(boolean uppercaseAcronyms) {
+        return uppercaseAcronyms
+                ? format(Collectors.joining(), FormattingOptions.CAPITALISE_ALL_BUT_FIRST)
+                : format(Collectors.joining(), FormattingOptions.LOWERCASE, FormattingOptions.CAPITALISE_ALL_BUT_FIRST);
     }
 
     public String toTitleCase() {
-        return format(Collectors.joining(), FormattingOptions.CAPITALISE_ALL);
+        return toTitleCase(true);
+    }
+
+    public String toTitleCase(boolean uppercaseAcronyms) {
+        return uppercaseAcronyms
+                ? format(Collectors.joining(), FormattingOptions.CAPITALISE_ALL)
+                : format(Collectors.joining(), FormattingOptions.LOWERCASE, FormattingOptions.CAPITALISE_ALL);
     }
 
     public String toAddress() {
@@ -131,11 +143,7 @@ public final class Name {
     }
 
     public Name concat(Name next) {
-        long newLength = lengthIfKnown().flatMap(myLength ->
-                next.lengthIfKnown().map(yourLength ->
-                        myLength + yourLength))
-                .orElse(LENGTH_UNKNOWN);
-        return new Name(parts.concat(next.parts), newLength);
+        return new Name(parts.concat(next.parts), length + next.length);
     }
 
     public Name withPrefix(String prefix) {
@@ -155,19 +163,15 @@ public final class Name {
     }
 
     public Name transform(UnaryOperator<Stream<String>> transformer) {
-        return transform(transformer, LENGTH_UNKNOWN);
-    }
-
-    private Name transform(UnaryOperator<Stream<String>> transformer, long newLength) {
-        return new Name(parts.transform(transformer), newLength);
+        return of(parts.transform(transformer));
     }
 
     public Name map(UnaryOperator<String> f) {
-        return new Name(parts.map(f), length.get());
+        return new Name(parts.map(f), length);
     }
 
     public Name filter(Predicate<String> p) {
-        return new Name(parts.filter(p), LENGTH_UNKNOWN);
+        return transform(s -> s.filter(p));
     }
 
     public <T> T collect(Collector<String, ?, T> collector) {
@@ -187,12 +191,12 @@ public final class Name {
     }
 
     public Name withoutFirst() {
-        return new Name(parts.skip(1), lengthIfKnown().map(l -> Math.max(0, l - 1)).orElse(LENGTH_UNKNOWN));
+        return new Name(parts.skip(1), Math.max(0, length - 1));
     }
 
     public Name withoutLast() {
-        long newLength = Math.max(0, length() - 1);
-        return transform(s -> s.limit(newLength), newLength);
+        long newLength = Math.max(length - 1, 0);
+        return new Name(parts.transform(s -> s.limit(newLength)), newLength);
     }
 
     @Override

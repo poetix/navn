@@ -1,8 +1,10 @@
 package com.codepoetics.navn;
 
 import com.codepoetics.protonpack.StreamUtils;
+import com.codepoetics.protonpack.Streamable;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
@@ -12,8 +14,10 @@ import java.util.stream.Stream;
 
 public final class Name {
 
+    private static final long LENGTH_UNKNOWN = -1;
+
     public static Name empty() {
-        return new Name(new String[] {});
+        return new Name(Streamable.empty(), 0);
     }
 
     public static Name of(String source) {
@@ -25,7 +29,7 @@ public final class Name {
                 .filter(format -> format.test(trimmed))
                 .map(format -> ofTrimmed(trimmed, format))
                 .findFirst()
-                .orElseGet(() -> of(new String[]{trimmed}));
+                .orElseGet(() -> new Name(Streamable.of(trimmed), 1));
     }
 
     public static Name of(String source, char separator) {
@@ -41,27 +45,51 @@ public final class Name {
     }
 
     public static Name of(String[] parts) {
-        return new Name(parts);
+        return new Name(Streamable.of(parts), parts.length);
     }
 
-    private final String[] parts;
-    private Name(String[] parts) {
+    public static Name of(Collection<String> parts) {
+        return new Name(Streamable.of(parts), parts.size());
+    }
+
+    public static Name of(Iterable<String> parts) {
+        return of(Streamable.of(parts));
+    }
+
+    public static Name of(Streamable<String> parts) {
+        return new Name(parts, LENGTH_UNKNOWN);
+    }
+
+    private final AtomicLong length;
+    private final Streamable<String> parts;
+
+    private Name(Streamable<String> parts, long length) {
         this.parts = parts;
+        this.length = new AtomicLong(length);
+    }
+
+    public long length() {
+        return length.updateAndGet(l -> l == LENGTH_UNKNOWN ? parts.collect(Collectors.counting()) : l);
+    }
+
+    public Optional<Long> lengthIfKnown() {
+        long currentLength = length.get();
+        return currentLength == LENGTH_UNKNOWN ? Optional.empty() : Optional.of(currentLength);
     }
 
     public String[] toArray() {
-        return Arrays.copyOf(parts, parts.length);
+        return parts.toArray(String[]::new);
     }
 
     public List<String> toList() {
-        return Arrays.asList(parts);
+        return parts.toList();
     }
 
     public String format(Collector<CharSequence, ?, String> collector, FormattingOption...options) {
         FormattingOption process = Stream.of(options).reduce(
                 (s, i) -> s,
                 (f1, f2) -> (s, i) -> f2.apply(f1.apply(s, i), i));
-        return StreamUtils.zipWithIndex(Stream.of(parts))
+        return StreamUtils.zipWithIndex(parts.stream())
                 .map(indexed -> process.apply(indexed.getValue(), indexed.getIndex()))
                 .collect(collector);
     }
@@ -102,14 +130,20 @@ public final class Name {
         return toSeparated(" ", FormattingOptions.CAPITALISE_ALL);
     }
 
+    public Name concat(Name next) {
+        long newLength = lengthIfKnown().flatMap(myLength ->
+                next.lengthIfKnown().map(yourLength ->
+                        myLength + yourLength))
+                .orElse(LENGTH_UNKNOWN);
+        return new Name(parts.concat(next.parts), newLength);
+    }
+
     public Name withPrefix(String prefix) {
         return withPrefix(Name.of(prefix));
     }
 
     public Name withPrefix(Name prefix) {
-        return transform(s -> Stream.concat(
-                Stream.of(prefix.parts),
-                s));
+        return prefix.concat(this);
     }
 
     public Name withSuffix(String suffix) {
@@ -117,25 +151,27 @@ public final class Name {
     }
 
     public Name withSuffix(Name suffix) {
-        return transform(s -> Stream.concat(
-                s,
-                Stream.of(suffix.parts)));
+        return concat(suffix);
     }
 
     public Name transform(UnaryOperator<Stream<String>> transformer) {
-        return new Name(transformer.apply(Stream.of(parts)).toArray(String[]::new));
+        return transform(transformer, LENGTH_UNKNOWN);
+    }
+
+    private Name transform(UnaryOperator<Stream<String>> transformer, long newLength) {
+        return new Name(parts.transform(transformer), newLength);
     }
 
     public Name map(UnaryOperator<String> f) {
-        return transform(s -> s.map(f));
+        return new Name(parts.map(f), length.get());
     }
 
     public Name filter(Predicate<String> p) {
-        return transform(s -> s.filter(p));
+        return new Name(parts.filter(p), LENGTH_UNKNOWN);
     }
 
     public <T> T collect(Collector<String, ?, T> collector) {
-        return Stream.of(parts).collect(collector);
+        return parts.collect(collector);
     }
 
     public Name uppercasing(String... termsToUppercase) {
@@ -151,16 +187,17 @@ public final class Name {
     }
 
     public Name withoutFirst() {
-        return transform(s -> s.skip(1));
+        return new Name(parts.skip(1), lengthIfKnown().map(l -> Math.max(0, l - 1)).orElse(LENGTH_UNKNOWN));
     }
 
     public Name withoutLast() {
-        return new Name(Arrays.copyOf(parts, parts.length - 1));
+        long newLength = Math.max(0, length() - 1);
+        return transform(s -> s.limit(newLength), newLength);
     }
 
     @Override
     public int hashCode() {
-        return Arrays.hashCode(parts);
+        return Arrays.hashCode(toArray());
     }
 
     @Override
@@ -172,7 +209,7 @@ public final class Name {
             return false;
         }
         final Name other = (Name) obj;
-        return Objects.deepEquals(this.parts, other.parts);
+        return Objects.deepEquals(this.toArray(), other.toArray());
     }
 
     @Override

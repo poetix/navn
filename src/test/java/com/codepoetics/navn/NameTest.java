@@ -1,8 +1,10 @@
 package com.codepoetics.navn;
 
+import com.codepoetics.protonpack.Streamable;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -155,6 +157,36 @@ public class NameTest {
     droppingSuffix() {
         assertThat(Name.of("beanManagerWrapperFactory").withoutLast().toHyphenated(),
                 equalTo("bean-manager-wrapper"));
+    }
+
+    @Test public void
+    lengthIsCachedWhenKnown() {
+        assertThat(Name.of("fooBarBaz").lengthIfKnown(), equalTo(Optional.of(3L)));
+
+        Name nameOfUnknownLength = Name.of(Streamable.of("foo", "bar", "baz"));
+        assertThat(nameOfUnknownLength.lengthIfKnown(), equalTo(Optional.empty()));
+        assertThat(nameOfUnknownLength.length(), equalTo(3L));
+        assertThat(nameOfUnknownLength.lengthIfKnown().get(), equalTo(3L));
+    }
+
+    @Test public void
+    knownLengthsAreConcatenated() {
+        assertThat(Name.of("fooBar").concat(Name.of("bazXyzzy")).lengthIfKnown(), equalTo(Optional.of(4L)));
+    }
+
+    @Test public void
+    lengthOfConcatenatedNamesOfUnknownLengthsIsCachedWhenKnown() {
+        Name concatenated = Name.of(Streamable.of("foo", "bar")).concat((Name.of(Streamable.of("baz", "xyzzy"))));
+
+        assertThat(concatenated.lengthIfKnown(), equalTo(Optional.empty()));
+        assertThat(concatenated.length(), equalTo(4L));
+        assertThat(concatenated.lengthIfKnown(), equalTo(Optional.of(4L)));
+    }
+
+    @Test public void
+    droppingLastForcesLengthCalculation() {
+        Name concatenated = Name.of(Streamable.of("foo", "bar")).concat((Name.of(Streamable.of("baz", "xyzzy"))));
+        assertThat(concatenated.withoutLast().lengthIfKnown(), equalTo(Optional.of(3L)));
     }
 
     @Test public void
